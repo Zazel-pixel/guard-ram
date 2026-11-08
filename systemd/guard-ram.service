@@ -1,0 +1,10 @@
+[Unit]
+Description=guard-ram: Guard Ram for coding agents (inventory, inactivity, priorities)
+Documentation=file://@DATA@/README.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 @DATA@/guard_ram.py
+Nice=10
+# question dialogs are started detached: they must outlive the end of the pass
+KillMode=process

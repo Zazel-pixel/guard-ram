@@ -1,0 +1,36 @@
+# Example of ~/.config/guard-ram/rules.toml: the rules of one machine.
+# Same format as rules.toml. Its categories override the shipped values key by key, and
+# its [[rule]] entries are tried before the shipped rules. An invalid value is refused
+# (shipped value kept, warning in the journal); an unreadable file suspends every stop
+# for inactivity while it stays unreadable.
+
+# A fixed cap for the agents (here 20 GB) instead of a third of physical memory:
+# [limits]
+# agents_mb = 20480
+
+# Give tasks started by agents more time:
+# [categories.task]
+# idle_min = 30
+# stop_min = 30
+
+# A personal daemon started from an agent session, never to be stopped for inactivity:
+# [[rule]]
+# pattern = 'my-daemon\.py'
+# category = "infra"
+# reason = "screen capture daemon"
+
+# A graphical application an agent starts for the user:
+# [[rule]]
+# pattern = '(?i)blender'
+# category = "for-user"
+
+# A game editor and its MCP bridge, started by an agent for the user (Unity here):
+# [[rule]]
+# pattern = '/Unity/Hub/Editor/[^ ]+/Editor/Unity( |$)'
+# category = "for-user"
+# reason = "Unity editor"
+#
+# [[rule]]
+# pattern = 'mcp-for-unity'
+# category = "for-user"
+# reason = "MCP bridge between the Unity editor and the agents"

@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.bak-*
+# state, journal and local rules live outside the repository (~/.claude/guard-ram, ~/.config/guard-ram)
+state.json
+marks.json
+journal.jsonl*
