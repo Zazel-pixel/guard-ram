@@ -51,6 +51,11 @@ Read this before relying on it.
   `CODEX_*`), or was reparented to systemd while staying in the cgroup of the
   application that runs the agents. A process started through `systemd-run` (new
   cgroup) with a cleared environment escapes all three.
+- **Agents are recognised by the name of their executable**: `claude` (or a path
+  containing `/claude/versions/`) and `codex`. Other agents (Gemini CLI, Aider, an IDE
+  agent) are not seen as agents: what they start is in scope only if it descends from
+  Claude Code or Codex or carries one of the variables above. If either tool renames its
+  binary, Guard Ram sees nothing of it until `agent_kind()` in `guard_ram.py` is updated.
 - **Markers can be forged.** Any process of the same user can set
   `GUARD_RAM_CATEGORY=infra` and never be stopped for inactivity. Guard Ram is a
   housekeeping tool against forgetful agents, not a security boundary. See
@@ -149,6 +154,30 @@ Agents go only above the cap, with the session that sent a heartbeat in the last
 minute last of all. The Codex desktop app server is never stopped. If the pressure
 comes from outside the agents (a browser, a VM) and stopping everything would not be
 enough, only inactive units are stopped.
+
+## Prior art
+
+Linux already has tools that stop processes when memory runs out. They act when memory
+is already short, and they choose by size or pressure. None of them can tell an MCP server
+nobody has called for an hour from the build you are waiting for, and none asks the user.
+On the versions measured (Claude Code 2.1 and the Codex desktop app, November 2026), the
+agents themselves keep MCP servers up for as long as their session lives: the tools of
+Codex threads were still running after two days without a call.
+
+| | acts when | stops | knows what is idle | asks the user |
+|---|---|---|---|---|
+| kernel OOM killer | an allocation fails | the process with the highest `oom_score` | no | no |
+| [systemd-oomd](https://www.freedesktop.org/software/systemd/man/latest/systemd-oomd.service.html) | memory pressure (PSI) or swap use crosses a limit | a whole cgroup, with SIGKILL | no | no |
+| [earlyoom](https://github.com/rfjakob/earlyoom) | available memory and swap fall under 10 % | the process with the highest `oom_score` (regexes can prefer or avoid some) | no | no |
+| `systemd-run --user -p MemoryHigh= -p MemoryMax=` | a unit passes its limit | throttles above `MemoryHigh`, OOM killer inside the unit above `MemoryMax` | no | no |
+| Guard Ram | a unit is idle for 40 min, or the agents pass their cap | idle units first, then by priority, agents last | yes, per unit and per session | for what was started for the user |
+
+They are complements, not alternatives. A cgroup limit on an agent session bounds what
+one session can take, but when the limit is hit the kernel picks by size, and the build
+you are waiting for is often the largest process. earlyoom and systemd-oomd remain the
+safety net when memory really runs out: systemd-oomd was active on the machine of the
+measurements above. Guard Ram works earlier, on what the agents forgot, so that the safety
+net is rarely needed.
 
 ## Commands
 
