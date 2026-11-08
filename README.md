@@ -38,8 +38,8 @@ Read this before relying on it.
   writes, no new connection for 40 minutes. A session resumed after that finds its
   MCP servers gone: they do not come back until the session is restarted. The
   `restarted_after_stop` event and `guard-ram list` show when a stopped process was
-  started again within 30 minutes, which is the best signal that it should not have
-  been stopped.
+  started again within 30 minutes by the same session (or agent), which is the best
+  signal that it should not have been stopped.
 - **Codex children are judged on their own activity.** Codex hooks do not say which
   thread a process belongs to, so an MCP server of a Codex thread does not inherit
   the thread's activity, unlike Claude Code sessions (see *Activity*).

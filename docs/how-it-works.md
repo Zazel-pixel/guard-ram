@@ -120,8 +120,9 @@ pid is never mistaken for the old process.
 
 `appeared`, `idle`, `active_again`, `ask`, `answer`, `stop` (with `last_signal` and
 `last_signal_min_ago`), `stop_result` (what each process did with the signal),
-`saturation`, `gone` (with `life_min`), `restarted_after_stop` (probable false
-positive), `mark`, `keep`, `resumed` (gap in observation), `rules` (a refused value),
+`saturation`, `gone` (with `life_min`), `restarted_after_stop` (the same command, in the same folder,
+started again within 30 minutes by the session that lost it, or by the same agent when no
+session is known: a probable false positive), `mark`, `keep`, `resumed` (gap in observation), `rules` (a refused value),
 `error`. Each carries the unit, pid, category, priority, PSS, agent, session, working
 directory and the first 200 characters of the command line, with obvious secrets
 masked.

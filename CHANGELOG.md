@@ -55,8 +55,14 @@ before release. Each item names the test that fails if it is reverted.
 
 **Traceability**
 
-- `restarted_after_stop`: a process started again within 30 min of being stopped is
-  logged as a probable false positive. Test: `test_stop_then_restart_flagged`.
+- `restarted_after_stop`: a process started again within 30 min of being stopped, by the
+  session that lost it, is logged as a probable false positive. On the first day it fired
+  4 times, and every one was wrong: a 16-second `claude --model haiku -p` of another
+  session, started in the same folder, had loaded the same MCP servers. The detector now
+  compares sessions, then agents, and counts a restart whose owner is unknown. Tests:
+  `test_stop_then_restart_flagged`, `test_same_command_from_another_session_not_flagged`,
+  `test_session_resumed_by_a_new_agent_flagged`, `test_other_agent_without_sessions_not_flagged`,
+  `test_unknown_owner_flagged`.
 - Every stop records the last sign of life seen. Test: `test_last_signal_kept`.
 
 **Cost**

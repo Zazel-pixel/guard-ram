@@ -413,7 +413,8 @@ class Trace(unittest.TestCase):
         _, everything = w.wait(41)
         u = next(d[1] for d in everything if d[0] == "stop" and d[1].pid == 102)
         # what run_pass() records after the stop
-        w.state["stopped"] = [{"sig": rg.signature(u.cmd), "cwd": u.cwd, "t": w.t, "pid": 102, "reason": "x"}]
+        w.state["stopped"] = [{"sig": rg.signature(u.cmd), "cwd": u.cwd, "t": w.t, "pid": 102, "reason": "x",
+                               "agent": 100, "session": ""}]
         del w.procs[102]
         w.run_pass()
         w.procs[202] = proc(202, 100, "bash", "/bin/bash -c npm run dev", env={"CLAUDECODE": "1"},
@@ -422,6 +423,49 @@ class Trace(unittest.TestCase):
         e = [e for e in events if e["event"] == "restarted_after_stop"]
         self.assertEqual(len(e), 1)
         self.assertEqual(e[0]["old_pid"], 102)
+
+    def restart_by(self, session_of_stopped, new_agent, new_session):
+        """A unit of session `session_of_stopped` was stopped; the same command, in the same folder,
+        then appears under `new_agent` with `new_session`. Returns the restart events."""
+        w = World(session())
+        w.run_pass()
+        w.state["stopped"] = [{"sig": rg.signature("python3 -m some_mcp_server"), "cwd": "", "t": w.t, "pid": 101,
+                               "reason": "x", "agent": 100, "session": session_of_stopped}]
+        w.procs[new_agent] = proc(new_agent, 1, "claude", "claude --model haiku -p", start=99990 * HZ)
+        w.procs[new_agent + 1] = proc(new_agent + 1, new_agent, "python3", "python3 -m some_mcp_server",
+                                      env={"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": new_session}, start=99991 * HZ)
+        _, _, events = w.run_pass()
+        return [e for e in events if e["event"] == "restarted_after_stop"]
+
+    def test_same_command_from_another_session_not_flagged(self):
+        """Seen on a real machine: a 16-second `claude --model haiku -p` of another session, started in the
+        same folder, loaded the same MCP servers. That is not the stopped session asking for them back."""
+        self.assertEqual(self.restart_by("session-a", 500, "session-b"), [])
+
+    def test_session_resumed_by_a_new_agent_flagged(self):
+        self.assertEqual(len(self.restart_by("session-a", 600, "session-a")), 1)
+
+    def test_other_agent_without_sessions_not_flagged(self):
+        """Codex children carry no session id: then the agents are compared."""
+        w = World(session())
+        w.run_pass()
+        w.state["stopped"] = [{"sig": rg.signature("python3 -m some_mcp_server"), "cwd": "", "t": w.t, "pid": 101,
+                               "reason": "x", "agent": 100, "session": ""}]
+        w.procs[700] = proc(700, 1, "codex", "codex app-server", start=99990 * HZ)
+        w.procs[701] = proc(701, 700, "python3", "python3 -m some_mcp_server", env={"CODEX_SHELL": "1"},
+                            start=99991 * HZ)
+        _, _, events = w.run_pass()
+        self.assertEqual([e for e in events if e["event"] == "restarted_after_stop"], [])
+
+    def test_unknown_owner_flagged(self):
+        """A detached process without agent: nothing proves the restart is someone else's, so it counts."""
+        w = World(session())
+        w.run_pass()
+        w.state["stopped"] = [{"sig": rg.signature("node forgotten-server.js"), "cwd": "", "t": w.t, "pid": 340,
+                               "reason": "x", "agent": None, "session": ""}]
+        w.procs[341] = proc(341, 1, "node", "node forgotten-server.js", env={"CLAUDECODE": "1"}, start=99990 * HZ)
+        _, _, events = w.run_pass()
+        self.assertEqual(len([e for e in events if e["event"] == "restarted_after_stop"]), 1)
 
     def test_late_restart_not_flagged(self):
         w = World(session())

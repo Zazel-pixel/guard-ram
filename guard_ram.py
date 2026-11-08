@@ -602,6 +602,17 @@ def agent_heartbeats():
     return r
 
 
+def same_owner(record, u):
+    """A restart counts against the guard only if it comes from the session, or the agent, that lost
+    the process. The same command started by another agent in the same folder (a one-shot
+    `claude -p` that loads every MCP server for a few seconds) proves nothing."""
+    if record.get("session") and u.session:
+        return record["session"] == u.session
+    if record.get("agent") is not None and u.agent is not None:
+        return record["agent"] == u.agent
+    return True  # owner unknown on one side (a detached process without agent): assume the worst
+
+
 def signature(cmd):
     """Command line without its long numbers (pids, ports, timestamps): to recognise a restart."""
     return re.sub(r"\d{3,}", "#", cmd)
@@ -643,7 +654,7 @@ def analyse(snap, state, marks, cats, rules, heartbeats, self_pid=SELF, limits=N
             sig, burst = "new unit", False
             fingerprint = signature(u.cmd)
             for x in recent:
-                if x["sig"] == fingerprint and x["cwd"] == u.cwd:
+                if x["sig"] == fingerprint and x["cwd"] == u.cwd and same_owner(x, u):
                     events.append(event("restarted_after_stop", u, old_pid=x["pid"], stop_reason=x.get("reason", ""),
                                         reason=f"started again {round((t - x['t']) / 60)} min after being stopped: "
                                                f"probable false positive"))
@@ -1011,7 +1022,8 @@ def run_pass(dry_run=False):
                     events.append(event("stop", v, reason=reason, last_signal=v.info.get("signal"),
                                         last_signal_min_ago=round((snap.t - st) / 60) if st else None))
                     new.setdefault("stopped", []).append({"sig": signature(v.cmd), "cwd": v.cwd, "t": snap.t,
-                                                          "pid": v.pid, "reason": reason})
+                                                          "pid": v.pid, "reason": reason,
+                                                          "agent": v.agent, "session": v.session})
         # a dialog left unanswered well past its timeout: keep
         for key, a in new["units"].items():
             q = a.get("asked")
