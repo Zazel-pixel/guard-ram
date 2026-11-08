@@ -587,6 +587,15 @@ class Rules(unittest.TestCase):
         self.assertTrue(cats["for-user"]["ask"])
 
 
+class Display(unittest.TestCase):
+    def test_multi_line_command_shown_on_one_line(self):
+        """Found by the clean-machine install test: agents run multi-line scripts."""
+        self.assertEqual(rg.redact("python3 -c '\nimport os\n\tprint(1)'"), "python3 -c ' import os print(1)'")
+
+    def test_secrets_masked(self):
+        self.assertEqual(rg.redact("tool --token=abc123 --api-key xyz"), "tool --token=*** --api-key ***")
+
+
 class Journal(unittest.TestCase):
     def test_unexpected_lines_do_not_break_the_log(self):
         with tempfile.TemporaryDirectory() as d:

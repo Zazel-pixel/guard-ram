@@ -61,7 +61,7 @@ before release. Each item names the test that fails if it is reverted.
 
 **Cost**
 
-- 0.5 s → 0.08 s of CPU per pass. `smaps_rollup` cost 150 ms for one large editor; PSS
+- 0.5 s → 0.08 s of CPU per pass. `smaps_rollup` cost 150 ms for one large editor. PSS
   is now cached for a minute while RSS stays within 10 %, and re-read for every process
   near a threshold.
 
@@ -72,3 +72,13 @@ before release. Each item names the test that fails if it is reverted.
   agent run the install step by step, asking the user before each change. Tests:
   `test_keeps_existing_settings_and_hooks`, `test_running_twice_adds_nothing`,
   `test_invalid_json_left_untouched`.
+- **The guide was followed step by step on a new account of a clean Ubuntu 24.04 VM**,
+  with a simulated agent session. Everything worked, including a real stop of an orphan
+  and the protection of a unit by a local rule. Five frictions were fixed:
+  - multi-line command lines broke the listing and the journal display. They are now
+    shown on one line (test `test_multi_line_command_shown_on_one_line`).
+  - the test run ended on installer messages instead of `OK`.
+  - `~/.local/bin` was not in the `PATH` of the new account. The installer now says so.
+  - the guide's dry run hid small units.
+  - nothing removed the hooks on uninstall. `--remove-hooks` does, and the empty skill
+    folder is removed (test `test_removes_only_guard_ram_hooks`).

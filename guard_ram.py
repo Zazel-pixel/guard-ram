@@ -451,7 +451,8 @@ class Unit:
 
 
 def redact(cmd, n=200):
-    return SECRETS.sub(r"\1***", cmd)[:n]
+    """One line, obvious secrets masked: agents often run multi-line scripts (`bash -c`, `python -c`)."""
+    return SECRETS.sub(r"\1***", " ".join(cmd.split()))[:n]
 
 
 def build_units(snap, marks, self_pid=SELF):

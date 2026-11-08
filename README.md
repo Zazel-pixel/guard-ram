@@ -87,17 +87,18 @@ the system threshold.
 ```bash
 git clone <this repository> guard-ram && cd guard-ram
 python3 -m unittest discover -s tests     # no root, nothing is stopped
-python3 guard_ram.py --dry-run            # what it sees, and what it would stop now
+python3 guard_ram.py list --all           # what it sees, and what it would stop now
 python3 install.py                        # copy, systemd units, timer, skill
 python3 install.py --merge-hooks          # Claude Code heartbeat hooks (--config only shows them)
 python3 install.py --check                # exit 1 if the installed copy differs from this checkout
+python3 install.py --remove-hooks         # the way back: hooks first, then --uninstall
 guard-ram list                            # what runs, per agent, and what would be stopped now
 ```
 
 `install.py` installs a **copy** in `~/.local/share/guard-ram/`: switching branches in
 the checkout never changes the running guard. It edits `~/.claude/settings.json` only
-with `--merge-hooks`, after backing it up. `--uninstall` removes the timer, units, link
-and skill, and keeps state and logs.
+with `--merge-hooks` and `--remove-hooks`, after backing it up. `--uninstall` removes the
+timer, units, link and skill, and keeps state and logs.
 
 Machine-specific rules and limits go in `~/.config/guard-ram/rules.toml` (format in
 [docs/rules.example.toml](docs/rules.example.toml)). They are never in the repository.

@@ -48,10 +48,11 @@ fails, show its output to the user and go no further.
 ## 3. Show the user what Guard Ram sees
 
 ```bash
-python3 guard_ram.py --dry-run
+python3 guard_ram.py list --all
 ```
 
-This reads `/proc` and prints, without stopping or writing anything:
+This reads `/proc` and prints, without stopping or writing anything (`--all` includes the
+small active units that are hidden otherwise):
 
 - the cap line: the agents' summed memory against the cap (a third of physical memory by
   default), and system memory against its threshold.
@@ -87,7 +88,7 @@ Ask the user two questions, with the dry-run in front of them:
    agents_mb = 20480
    ```
 
-Run `python3 guard_ram.py --dry-run` again and check that every unit is where the user
+Run `python3 guard_ram.py list --all` again and check that every unit is where the user
 wants it. Never write rules the user did not agree to.
 
 ## 5. ASK: install
@@ -104,6 +105,10 @@ It writes `~/.local/share/guard-ram/` (a copy of the checkout), the user units
 skill `~/.claude/skills/guard-ram/` (linked from `~/.codex/skills/` when Codex is there).
 It enables the timer: one pass every 15 seconds. Any file it replaces is kept as
 `.bak-YYYY-MM-DD`.
+
+On a new account, `~/.local/bin` is often missing from the `PATH` of the current shell
+until the next login (`install.py` says so). In that case, use `~/.local/bin/guard-ram`
+instead of `guard-ram` in the steps below.
 
 ## 6. ASK: the Claude Code hooks
 
@@ -181,11 +186,13 @@ In a few lines: what was installed and where, the cap in use, the rules you adde
 ## Uninstall
 
 ```bash
+python3 install.py --remove-hooks   # if the hooks were merged in step 6
 python3 install.py --uninstall
 ```
 
-It stops the timer and removes the units, the link and the skill. Then remove the
-heartbeat hooks from `~/.claude/settings.json` (or restore the `.bak` file **after
-checking with the user** that nothing else changed since). State, journal and local
+`--remove-hooks` removes only the Guard Ram hooks from `~/.claude/settings.json`, after a
+backup, and leaves every other setting alone. Do it before deleting the installed copy:
+hooks that point to a missing file print an error on every tool call. `--uninstall`
+stops the timer and removes the units, the link and the skill. State, journal and local
 rules stay in `~/.claude/guard-ram/`, `~/.config/guard-ram/` and
 `~/.local/share/guard-ram/`. Deleting them is permanent: **ASK** first.

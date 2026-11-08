@@ -16,6 +16,7 @@ State and journal: ~/.claude/guard-ram/ (never touched here).
     python3 install.py --config     print the hooks to add to ~/.claude/settings.json
     python3 install.py --merge-hooks  add those hooks to ~/.claude/settings.json (backed up first,
                                     existing hooks kept, nothing added twice)
+    python3 install.py --remove-hooks remove them again (backed up first, other hooks kept)
     python3 install.py --uninstall  stop the timer, remove units, link and skill
                                     (the copy, the state and the journal stay)
 
@@ -102,6 +103,9 @@ def install():
         print(f"timer not enabled: {r.stderr.strip()}", file=sys.stderr)
     print(f"installed in {DATA}; timer: {systemctl('is-active', 'guard-ram.timer').stdout.strip()}")
     print("agent hooks: python3 install.py --config (show) or --merge-hooks (add)")
+    if str(LINK.parent) not in os.environ.get("PATH", "").split(os.pathsep):
+        print(f"note: {LINK.parent} is not in this shell's PATH (often the case on a new account until the "
+              f"next login): run {LINK} or open a new login shell")
     return check(quiet=True)
 
 
@@ -162,6 +166,46 @@ def merge_hooks(settings=CLAUDE_SETTINGS):
     return 0
 
 
+def remove_hooks(settings=CLAUDE_SETTINGS):
+    """Remove the heartbeat hooks from a Claude Code settings file, and nothing else."""
+    settings = Path(settings)
+    if not settings.exists():
+        print(f"{settings} does not exist, nothing to remove")
+        return 0
+    try:
+        data = json.loads(settings.read_text())
+    except ValueError as e:
+        sys.exit(f"{settings} is not valid JSON ({e}): fix it first, nothing was changed")
+    if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
+        sys.exit(f"{settings}: unexpected structure, nothing was changed")
+
+    def ours(entry):
+        return isinstance(entry, dict) and any(isinstance(h, dict) and "guard_ram.py heartbeat" in h.get("command", "")
+                                               for h in entry.get("hooks", []))
+
+    removed = 0
+    for event in list(data.get("hooks", {})):
+        entries = data["hooks"][event]
+        if not isinstance(entries, list):
+            continue
+        kept = [e for e in entries if not ours(e)]
+        removed += len(entries) - len(kept)
+        if kept:
+            data["hooks"][event] = kept
+        else:
+            del data["hooks"][event]
+    if not removed:
+        print(f"{settings}: no Guard Ram hook found, nothing changed")
+        return 0
+    back_up(settings)
+    tmp = settings.with_name(settings.name + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    json.loads(tmp.read_text())
+    tmp.replace(settings)
+    print(f"{settings}: {removed} Guard Ram hook entries removed (previous file kept as .bak-{date.today().isoformat()})")
+    return 0
+
+
 def config():
     print(json.dumps({"hooks": hooks()}, indent=2))
     print("\n# Merge into ~/.claude/settings.json, next to the existing hooks.", file=sys.stderr)
@@ -178,8 +222,12 @@ def uninstall():
     if SKILL_CODEX.is_symlink():
         SKILL_CODEX.unlink()
     (SKILL_CLAUDE / "SKILL.md").unlink(missing_ok=True)
-    print(f"uninstalled. Left in place: {DATA}, ~/.claude/guard-ram/ (state, journal), "
-          "~/.config/guard-ram/, and the hooks in settings.json, to remove by hand.")
+    try:
+        SKILL_CLAUDE.rmdir()  # only if empty: a backup kept next to it stays
+    except OSError:
+        pass
+    print(f"uninstalled. Left in place: {DATA}, ~/.claude/guard-ram/ (state, journal) and ~/.config/guard-ram/. "
+          "If the hooks were merged: python3 install.py --remove-hooks")
     return 0
 
 
@@ -189,6 +237,7 @@ def main():
     g.add_argument("--check", action="store_true")
     g.add_argument("--config", action="store_true")
     g.add_argument("--merge-hooks", action="store_true")
+    g.add_argument("--remove-hooks", action="store_true")
     g.add_argument("--uninstall", action="store_true")
     a = ap.parse_args()
     if a.check:
@@ -197,6 +246,8 @@ def main():
         return config()
     if a.merge_hooks:
         return merge_hooks()
+    if a.remove_hooks:
+        return remove_hooks()
     if a.uninstall:
         return uninstall()
     return install()
