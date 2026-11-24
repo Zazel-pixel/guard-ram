@@ -74,7 +74,7 @@ editor of about 10 GB started by an agent), November 2026:
 | on saturation | the whole tree of every session killed at once (13 agents in one event) | stop by priority, agents last |
 | in scope | direct descendants of Claude Code agents | Claude Code, Codex, detached processes (editor, compilers, daemons) |
 | forgotten processes | never stopped below the cap | 20 units stopped after 40 min idle on the first cycle (1.4 GB), all tools of 2-day-old Codex threads |
-| cost per pass (every 15 s) | 0.5 s CPU | 0.08 s CPU |
+| cost per pass (every 15 s) | 0.5 s CPU | 0.08 s CPU (0.2 s on day 16, with more sessions open) |
 
 Each activity signal was checked against real processes before being kept, and three
 false negatives found that way were fixed (see [CHANGELOG.md](CHANGELOG.md)): an idle
@@ -86,6 +86,33 @@ One false-positive mistake happened during the first deployment: the editor star
 for the user was counted in the agents' cap, which triggered a saturation and stopped
 six MCP servers of live sessions. Units started for the user now count only towards
 the system threshold.
+
+### Over 16 days
+
+The same workstation, 8 to 24 November 2026, timer running throughout, agents' cap
+set to 20 GB in the local rules. Counted from the journal:
+
+| | |
+|---|---|
+| units stopped | 2,096: 1,459 idle for 40 min, 620 in saturation, 17 after the user answered "Stop" |
+| idle stops by category | 1,046 MCP servers, 412 tasks, 1 orphan; no agent, no `for-user` unit |
+| agents stopped | 0 (the last resort was never reached) |
+| memory held by what was stopped for inactivity | 190 GB of PSS summed over the stops, median 83 MB per unit |
+| saturations | 50, at most 96.9 % of system memory used |
+| signals | 2,936 processes left on SIGTERM, 34 needed SIGKILL |
+| `for-user` dialogs | 81 answered or timed out: 17 "Stop", 18 "Keep", 46 without an answer (kept) |
+
+The summed PSS is not memory saved at one moment: a session that comes back starts its
+MCP servers again. It measures how much agents leave behind and forget.
+
+**Its own mistakes**, from `restarted_after_stop`: 164 units stopped for inactivity were
+started again within 30 min by the session that lost them (11 %). Most were in the
+first four days, before the activity signals were corrected. From 12 November on,
+the rate was 39 of 814 (4.8 %). Saturation stops were worse: on 23 and 24 November,
+Unity compilations run by an agent pushed the agents past the cap, were stopped and
+then started again by the agent, 162 times in two days. That loop is fixed: what was
+started again after a stop is now stopped last, and is spared while only the cap is
+exceeded (see *How it decides*).
 
 ## Install
 
@@ -150,7 +177,10 @@ Time not observed (suspend, timer stopped) does not count as idle.
 third of physical memory by default), or system memory above `system_pct` (90 %).
 Guard Ram stops until 2 GB under the cap and 5 points under the threshold, in this
 order: inactive before active, then lowest priority, then longest idle, then largest.
-Agents go only above the cap, with the session that sent a heartbeat in the last
+A unit its owner started again within 30 minutes of a stop comes after all of these.
+While only the cap is exceeded, it is not stopped, and no agent is stopped to make room
+for it: the cap stays exceeded and the `saturation` event says so. Only a system above
+`system_pct` reaches it. Agents go only above the cap, with the session that sent a heartbeat in the last
 minute last of all. The Codex desktop app server is never stopped. If the pressure
 comes from outside the agents (a browser, a VM) and stopping everything would not be
 enough, only inactive units are stopped.

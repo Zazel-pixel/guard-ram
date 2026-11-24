@@ -15,7 +15,7 @@ to the journal.
 5. writes the state, the marks and the journal, then sends the signals.
 
 The whole pass holds a lock (`~/.claude/guard-ram/.lock`), shared with `mark` and
-`keep`. It costs about 0.08 s of CPU.
+`keep`. It costs 0.1 to 0.2 s of CPU (measured on a busy workstation, November 2026).
 
 ## Scope
 
@@ -105,7 +105,7 @@ All under `~/.claude/guard-ram/`:
 
 | file | content |
 |---|---|
-| `state.json` | `{"version": 1, "t": …, "units": {"<pid>:<start>": {"first", "active", "used", "state", "signal", "signal_t", "burst", "noise_kb", "asked", "answer_t", "cat", "prio", "pid", "cmd"}}, "proc": {"<pid>:<start>": [cpu, io, io_w]}, "conn": {…}, "gui": {…}, "pss": {…}, "stopped": [{"sig", "cwd", "t", "pid", "reason"}]}` |
+| `state.json` | `{"version": 1, "t": …, "units": {"<pid>:<start>": {"first", "active", "used", "state", "signal", "signal_t", "burst", "noise_kb", "asked", "answer_t", "restarted", "cat", "prio", "pid", "cmd"}}, "proc": {"<pid>:<start>": [cpu, io, io_w]}, "conn": {…}, "gui": {…}, "pss": {…}, "stopped": [{"sig", "cwd", "t", "pid", "reason", "agent", "session"}]}` |
 | `marks.json` | `{"<pid>:<start>": {"category", "priority", "reason", "until", "t", "by"}}` |
 | `journal.jsonl` | one event per line (below), rotated at 10 MB, 5 generations |
 | `heartbeats/claude-<pid>.json` | last heartbeat of a session: `{"t", "session", "cwd", "hook"}` |
