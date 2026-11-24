@@ -658,6 +658,8 @@ def analyse(snap, state, marks, cats, rules, heartbeats, self_pid=SELF, limits=N
                     events.append(event("restarted_after_stop", u, old_pid=x["pid"], stop_reason=x.get("reason", ""),
                                         reason=f"started again {round((t - x['t']) / 60)} min after being stopped: "
                                                f"probable false positive"))
+                    # its owner asked for it again: saturation will pick it only as a last resort
+                    a["restarted"] = True
                     break
         else:
             a = dict(a)
@@ -694,6 +696,7 @@ def analyse(snap, state, marks, cats, rules, heartbeats, self_pid=SELF, limits=N
             a["active"], a["signal"], a["signal_t"] = agent_used[u.agent], "its session is in use", agent_used[u.agent]
         u.active_now = ok
         u.info["signal"], u.info["signal_t"] = a.get("signal"), a.get("signal_t")
+        u.info["restarted"] = a.get("restarted", False)
         u.idle_s = max(0, t - a["active"])
         idle_after, stop_after = c["idle_min"] * 60, c["stop_min"]
         old_state = a.get("state", "active")
@@ -766,18 +769,30 @@ def saturation(snap, units, decisions, events, heartbeats, limits):
     if outside:
         events[-1]["reason"] += "; cause outside the agents: only idle units are stopped"
     # idle (20-minute state, not the last 15 seconds) first, then lowest priority, then longest
-    # idle, then largest
-    candidates = sorted((u for u in units.values()
-                         if u.key not in chosen and not u.protected and not u.info["root_agent"]
-                         and not (outside and u.state == "active")),
-                        key=lambda u: (u.state == "active", u.priority, -u.idle_s, -u.pss))
+    # idle, then largest. What its owner started again after a stop comes after everything else:
+    # stopping it again only makes the agent start it a third time (seen with Unity compilations).
+    # Over the agents' cap alone, it is spared, and so are the agents; only a saturated system
+    # (pct >= threshold) reaches it.
+    system_full = pct >= threshold
+    pool = [u for u in units.values()
+            if u.key not in chosen and not u.protected and not u.info["root_agent"]
+            and not (outside and u.state == "active")]
+    spared = [u for u in pool if u.info.get("restarted") and not system_full]
+    candidates = sorted((u for u in pool if u not in spared),
+                        key=lambda u: (u.info.get("restarted", False), u.state == "active", u.priority,
+                                       -u.idle_s, -u.pss))
     for u in candidates:
         if enough():
             return out
-        out.append(("stop", u, f"saturation: {cause}; priority {u.priority}, "
+        again = "started again after a stop, " if u.info.get("restarted") else ""
+        out.append(("stop", u, f"saturation: {cause}; priority {u.priority}, {again}"
                                f"{'active' if u.state == 'active' else 'idle for ' + duration(u.idle_s)}"))
         chosen.add(u.key)
         freed += u.pss
+    if spared and not enough():
+        events[-1]["reason"] += (f"; {len(spared)} unit(s) started again after a stop spared, "
+                                 f"cap left exceeded")
+        return out
     if outside or total <= cap:
         return out
     # last resort: agents, the session in use last of all; never the Codex desktop app server

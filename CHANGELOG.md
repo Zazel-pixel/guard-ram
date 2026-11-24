@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Saturation no longer stops what was just started again.** A unit its owner started
+  again less than 30 min after a stop comes after everything else. When only the agents'
+  cap is exceeded, it is spared, the agents too, and the saturation event says so. Only a
+  system above its threshold reaches it. Before this, on one workstation, Unity compilations
+  were stopped over the cap and started again by the agent 162 times in two days.
+  (`test_restart_spared_over_the_cap`, `test_restart_stopped_when_the_system_is_full`)
+
 ## 1.0.0 — first public release
 
 Guard Ram replaces a private script that killed the whole tree of every Claude Code

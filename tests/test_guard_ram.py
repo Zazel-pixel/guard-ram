@@ -552,6 +552,36 @@ class Saturation(unittest.TestCase):
         _, d, _ = w.run_pass()
         self.assertFalse(any(x[1].pid == 401 for x in d))
 
+    def restarted_build(self, mem_available):
+        """A build stopped once in saturation, then started again by the same agent."""
+        w = World(session(), mem_available=mem_available)
+        w.run_pass()
+        w.state["stopped"] = [{"sig": rg.signature("node build.js"), "cwd": "", "t": w.t, "pid": 103,
+                               "reason": "saturation", "agent": 100, "session": ""}]
+        w.procs[104] = proc(104, 100, "node", "node build.js", env={"CLAUDECODE": "1", "CLAUDE_PID": "100"},
+                            pss=22000, start=99999 * HZ)
+        w.cgroups[104] = "/app-claude.scope"
+        return w.run_pass()
+
+    def test_restart_spared_over_the_cap(self):
+        """Seen on a real machine: Unity compilations stopped over the agents' cap, started again at
+        once by the agent, stopped again: 162 times in two days. Over the cap alone, the restart stays."""
+        _, d, events = self.restarted_build(mem_available=40000)
+        self.assertTrue(any(e["event"] == "restarted_after_stop" for e in events))
+        stops = [x[1].pid for x in d if x[0] == "stop"]
+        self.assertNotIn(104, stops, "the restarted build is not stopped a second time")
+        self.assertNotIn(100, stops, "nor is the agent, to make room for it")
+        self.assertIn(101, stops, "the rest still goes first")
+        sat = [e for e in events if e["event"] == "saturation"]
+        self.assertIn("spared", sat[-1]["reason"])
+
+    def test_restart_stopped_when_the_system_is_full(self):
+        _, d, _ = self.restarted_build(mem_available=3000)
+        stops = [x[1].pid for x in d if x[0] == "stop"]
+        self.assertIn(104, stops, "a saturated system still reaches it")
+        self.assertLess(stops.index(101), stops.index(104), "but after everything else")
+        self.assertLess(stops.index(102), stops.index(104))
+
     def test_agent_as_last_resort(self):
         procs = session()
         procs[3].pss = 30000
